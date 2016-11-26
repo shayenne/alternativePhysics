@@ -1,13 +1,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
-/* #include"ep.h" */
-
-#define PI 3.141592
-#define NMAX 40000
-#define R 0
-#define G 1
-#define B 2
+#include "ep.h"
 
 /* Image dimensions */
 #define  M  5 /*rows*/
@@ -43,12 +37,10 @@ float temp[M][N][3] = {
   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}
 };
 
-void blurry(int i, int j, float img[M][N][3], float tmp[M][N][3]);
 
-void printMatrix(float mtx[M][N][3]);
-
-void copyResult(float orig[M][N][3], float dest[M][N][3]);
-
+/*-----------------------------------------------------*
+           ALTERNATIVE PHYSICS - MAIN FUNCTION
+ *-----------------------------------------------------*/
 int main(int argc, char *argv[]) {
   
   /* Parameters in argv: 
@@ -63,7 +55,8 @@ int main(int argc, char *argv[]) {
   if (argc == 5) 
     nIter = atoi(argv[3]);
   else {
-    printf("You need pass all arguments:\n ./alterPhysics <input> <output> <n_iter> <n_proc>\n");
+    printf("You need pass all arguments:\n \
+	   /alterPhysics <input> <output> <n_iter> <n_proc>\n");
     return 0;
   }
   
@@ -175,7 +168,6 @@ void blurry(int i, int j, float img[M][N][3], float tmp[M][N][3]) {
   if (tmp[i][j][G] > 1)
     tmp[i][j][G] -= 1;
 
-  printMatrix(tmp);
 }  
 
 
