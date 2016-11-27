@@ -1,19 +1,10 @@
 #include<stdio.h>
 #include<stdlib.h>
-
-typedef struct {
-     int red, green, blue;
-} ppmPixel;
-
-typedef struct {
-     int x, y;
-     ppmPixel *data;
-} ppmImage;
+#include "ppmFunctions.h"
 
 #define CREATOR "RPFELGUEIRAS" /* Modified for our own purposes*/
-#define RGB_COMPONENT_COLOR 255
 
-static ppmImage *ppmReader(const char *filename)
+ppmImage *ppmReader(const char *filename)
 {
          char buff[16];
          ppmImage *img;
@@ -121,22 +112,100 @@ void ppmWriter(const char *filename, ppmImage *img)
 
 void changeColorPPM(ppmImage *img)
 {
-    int i;
-    if(img){
-
-         for(i=0;i<img->x*img->y;i++){
-              img->data[i].red=img->data[i].red;
-              img->data[i].green=img->data[i].green;
-              img->data[i].blue=img->data[i].blue;
-         }
+  int i;
+  if(img){
+    for(i=0;i<img->x*img->y;i++){
+      img->data[i].red=img->data[i].red;
+      img->data[i].green=img->data[i].green;
+      img->data[i].blue=img->data[i].blue;
     }
+  }
 }
 
-int main(){
-    ppmImage *image;
-    image = ppmReader("test.ppm");
-    changeColorPPM(image);
-    ppmWriter("can_bottom2.ppm",image);
-    printf("Press any key...");
-    getchar();
+
+float ***convertFloatImage(ppmImage *img) {
+  int i;
+
+  float ***image;
+  
+  if(img){
+    
+    //image = (float ***)malloc(sizeof(float)*img->x*img->y*3);
+    image = (float ***) malloc (img->x * sizeof(float **));
+
+    int k, l;
+    for (k = 0; k < img->x; k++) {
+      image[k] = (float **) malloc (img->y * sizeof(float *));
+      for (l = 0; l<img->y;l++)
+	image[k][l] = (float *) malloc (3* sizeof(float));
+    }
+	  
+    for(i = 0; i < img->x * img->y; i++){
+      image[i/img->y][i%img->y][0] = img->data[i].red / 255.0;
+      image[i/img->y][i%img->y][1] = img->data[i].green / 255.0;
+      image[i/img->y][i%img->y][2] = img->data[i].blue / 255.0;
+    }
+
+    return image;
+  }
+  return NULL;
 }
+
+ppmImage *convertIntPPM(float ***image, int M, int N) {
+  //alloc memory form image
+  ppmImage *img;
+  img = (ppmImage *)malloc(sizeof(ppmImage));
+  if (!img) {
+    fprintf(stderr, "Unable to allocate memory\n");
+    exit(1);
+  }
+  img->x = M;
+  img->y = N;
+  img->data = (ppmPixel*)malloc(M * N * sizeof(ppmPixel));
+  
+  if (!img) {
+    fprintf(stderr, "Unable to allocate memory\n");
+    exit(1);
+  }
+
+  //read pixel data from file
+  int i, j, k;
+
+  k = 0;
+  for (i = 0; i < M; i++)
+    for (j = 0; j < N; j++) {
+      img->data[k].red   = (int) image[i][j][0] * 255;
+      img->data[k].green = (int) image[i][j][1] * 255;
+      img->data[k].blue  = (int) image[i][j][2] * 255;
+      k++; 
+    }
+  
+  return img; 
+}
+
+void freeImage(float ***img, int M, int N) {
+  int i,j;
+  
+  for (i = 0; i < M; i++) {
+    for (j = 0; j < N; j++)
+      free(img[i][j]);
+    free(img[i]);
+  }
+  free(img);
+}
+
+
+void freePPM(ppmImage *img) {
+  free(img->data);
+  free(img);
+}
+/* int main(){ */
+/*     ppmImage *image; */
+/*     image = ppmReader("test.ppm"); */
+/*     changeColorPPM(image); */
+/*     ppmWriter("can_bottom2.ppm",image); */
+/*     printf("Press any key..."); */
+/*     getchar(); */
+/*     float ***img = convertFloatImage("test.ppm"); */
+/*     /\*MAKE FUNCTIONS TO FREE MEMORY*\/ */
+/* } */
