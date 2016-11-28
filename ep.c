@@ -2,10 +2,11 @@
 #include<stdlib.h>
 #include<math.h>
 #include "ep.h"
+#include "ppmFunctions.h"
 
 /* Image dimensions */
-#define  M  5 /*rows*/
-#define  N  5 /*columns*/
+int  M = 5; /*rows*/
+int  N = 5;/*columns*/
 
 
 /* float image[M][N][3] = { */
@@ -21,21 +22,21 @@
 /*  }; */
 
 
-float image[M][N][3] = {
-  {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}},
-  {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}},
-  {{0,0,0},{0,0,0},{1,0,1},{0,0,0},{0,0,0}},
-  {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}},
-  {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}
-};
+/* float image[M][N][3] = { */
+/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, */
+/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, */
+/*   {{0,0,0},{0,0,0},{1,0,1},{0,0,0},{0,0,0}}, */
+/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, */
+/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}} */
+/* }; */
 
-float temp[M][N][3] = {
-  {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}},
-  {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}},
-  {{0,0,0},{0,0,0},{1,0,1},{0,0,0},{0,0,0}},
-  {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}},
-  {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}
-};
+/* float temp[M][N][3] = { */
+/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, */
+/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, */
+/*   {{0,0,0},{0,0,0},{1,0,1},{0,0,0},{0,0,0}}, */
+/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, */
+/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}} */
+/* }; */
 
 
 /*-----------------------------------------------------*
@@ -52,8 +53,12 @@ int main(int argc, char *argv[]) {
   char *input, *output;
   int nIter, nProc;
   
-  if (argc == 5) 
-    nIter = atoi(argv[3]);
+  if (argc == 5) {
+    input  = argv[1];
+    output = argv[2];
+    nIter  = atoi(argv[3]);
+    nProc  = atoi(argv[4]);
+  }
   else {
     printf("You need pass all arguments:\n \
 	   /alterPhysics <input> <output> <n_iter> <n_proc>\n");
@@ -61,7 +66,21 @@ int main(int argc, char *argv[]) {
   }
   
   /* R, G, B in [0,1[*/
+  printf("Parâmetros recebidos: %s %s %d %d\n", input, output, nIter, nProc);
 
+  /* Get PPM data */
+  ppmImage *ppm, *newPPM;
+  ppm = ppmReader(input);
+  
+  float ***image = convertFloatImage(ppm);
+  float ***temp  = convertFloatImage(ppm);
+
+  /* Refresh image dimensions */
+  M = ppm->x;
+  N = ppm->y;
+  
+  printMatrix(temp);
+  
   for (int k = 0; k < nIter; k++) {
     /* First try: apply blurry in every pixel*/
     for (int i = 1; i < M-1; i++) {
@@ -73,13 +92,21 @@ int main(int argc, char *argv[]) {
     printMatrix(image);
   }
 
+  newPPM = convertIntPPM(image, M, N);
+  ppmWriter(output, newPPM);
+
+  /* Free memory used */
+  freeImage(image, M, N);
+  freeImage(temp, M, N);
+  freePPM(ppm);
+  freePPM(newPPM);
   return 0;
 }
 
 /*-----------------------------------------------------*
              DEBUG - PRINT MATRIX FUNCTION
  *-----------------------------------------------------*/
-void printMatrix(float mtx[M][N][3]) {
+void printMatrix(float ***mtx) {
   for(int i = 0; i < M; i++) { 
     for(int j = 0; j < N; j++) {
       printf("[%.2f, %.2f, %.2f]  ", mtx[i][j][R], mtx[i][j][G], mtx[i][j][B]);
@@ -92,7 +119,7 @@ void printMatrix(float mtx[M][N][3]) {
 /*-----------------------------------------------------*
              COPY - MAKE MATRIX EQUALS
  *-----------------------------------------------------*/
-void copyResult(float orig[M][N][3], float dest[M][N][3]) {
+void copyResult(float ***orig, float ***dest) {
 
   for(int i = 0; i < M; i++) {
     for(int j = 0; j < N; j++) {
@@ -107,7 +134,7 @@ void copyResult(float orig[M][N][3], float dest[M][N][3]) {
 /*-----------------------------------------------------*
                TRANSPORT COLORS FUNCTION
  *-----------------------------------------------------*/
-void blurry(int i, int j, float img[M][N][3], float tmp[M][N][3]) {
+void blurry(int i, int j, float ***img, float ***tmp) {
   
   float theta = 2 * PI * img[i][j][G];
   float rx = cos(PI/2 - theta);
