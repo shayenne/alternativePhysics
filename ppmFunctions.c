@@ -174,9 +174,9 @@ ppmImage *convertIntPPM(float ***image, int M, int N) {
   k = 0;
   for (i = 0; i < M; i++)
     for (j = 0; j < N; j++) {
-      img->data[k].red   = (int) image[i][j][0] * 255;
-      img->data[k].green = (int) image[i][j][1] * 255;
-      img->data[k].blue  = (int) image[i][j][2] * 255;
+      img->data[k].red   = (int) (image[i][j][0] * 255);
+      img->data[k].green = (int) (image[i][j][1] * 255);
+      img->data[k].blue  = (int) (image[i][j][2] * 255);
       k++; 
     }
   

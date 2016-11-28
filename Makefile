@@ -1,6 +1,6 @@
 LDFLAGS= -lm
 CFLAGS= -Wall -pedantic --ansi
-OFLAGS= -std=c99 -O3 -openmp
+OFLAGS= -std=c99 -O0 -fopenmp
 
 DEPS = ep.h ppmFunctions.h
 OBJ = ep.o ppmFunctions.o
@@ -9,7 +9,7 @@ OBJ = ep.o ppmFunctions.o
 	$(CC) $(CFLAGS)  $(OFLAGS) $(LDFLAGS)  -c -o $@ $< $(OFLAGS) $(LDFLAGS) 
 
 alterPhysics:	$(OBJ)
-	gcc $(CFLAGS) -o $@ $^  $(OFLAGS) $(LDFLAGS) 
+	gcc $(CFLAGS) -o $@ $^  $(OFLAGS) $(LDFLAGS)
 
 all: 	alterPhysics
 	@echo Programação Paralela e Distribuída - 2 Semestre/2016

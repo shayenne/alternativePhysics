@@ -7,3 +7,5 @@
 void blurry(int i, int j, float ***img, float ***tmp);
 void printMatrix(float ***mtx);
 void copyResult(float ***orig, float ***dest);
+void greenRefresh(float ***mat);
+void clean(float ***mat);

@@ -1,16 +1,16 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<math.h>
+#include<omp.h>
+#include <string.h>
+
 #include "ep.h"
 #include "ppmFunctions.h"
-#include <omp.h>
+
 
 /* Image dimensions */
 int  M = 5; /*rows*/
 int  N = 5;/*columns*/
-
-void greenRefresh();
-void clean(float mat[M][N][3]);
 
 /*-----------------------------------------------------*
            ALTERNATIVE PHYSICS - MAIN FUNCTION
@@ -40,6 +40,7 @@ int main(int argc, char *argv[]) {
   
   /* R, G, B in [0,1[*/
   printf("Parâmetros recebidos: %s %s %d %d\n", input, output, nIter, nProc);
+  omp_set_num_threads(nProc);
 
   /* Get PPM data */
   ppmImage *ppm, *newPPM;
@@ -52,32 +53,55 @@ int main(int argc, char *argv[]) {
   M = ppm->x;
   N = ppm->y;
   
-  printMatrix(temp);
+  //printMatrix(temp);
   
-  for (int k = 0; k < nIter; k++) {
-    clean(temp);
-    /* First try: apply blurry in every pixel*/
-    for (int i = 1; i < M-1; i++) {
-      for (int j = 1; j < N-1; j++) {
-	blurry(i, j, image, temp);
-
-      }
+#pragma omp parallel shared(temp, image)
+  {
+    int id;
+    id = omp_get_thread_num();
+    printf("id: %d \n", id);
+    
+    // #pragma omp parallel for schedule(dynamic)
+    for (int k = 0; k < nIter; k++) {
+	clean(temp);
+	/* First try: apply blurry in every pixel*/
+	for (int i = 1; i < M-1; i++) {
+	  for (int j = 1; j < N-1; j++) {
+	    blurry(i, j, image, temp);
+	  }
+	}
+	
+	/*
+	  for (int i = 1; i < M-1; i++) 
+	  for (int j = 1; j < N-1; j++) 
+	  image[i][j][B] += temp[i][j][B];
+	  
+	  for (int i = 1; i < M-1; i++) 
+	  for (int j = 1; j < N-1; j++)
+	  image[i][j][R] += temp[i][j][R];
+	*/
+	
+	for (int i = 1; i < M-1; i++) 
+	  for (int j = 1; j < N-1; j++) {
+	    image[i][j][R] += temp[i][j][R];
+	    image[i][j][B] += temp[i][j][B];
+	  }
+	
+	greenRefresh(image);
+	newPPM = convertIntPPM(image, M, N);
+	char str[15];
+	sprintf(str, "res/out%d.ppm", k);
+	ppmWriter(str, newPPM);
+	
     }
-
-    for (int i = 1; i < M-1; i++) 
-      for (int j = 1; j < N-1; j++){
-	image[i][j][R] += temp[i][j][R];
-	image[i][j][B] += temp[i][j][B];
-      }
-
-    greenRefresh(image);   
   }
-
+  
+  
   printMatrix(image);
-
+  
   newPPM = convertIntPPM(image, M, N);
   ppmWriter(output, newPPM);
-
+  
   /* Free memory used */
   freeImage(image, M, N);
   freeImage(temp, M, N);
@@ -154,11 +178,11 @@ void blurry(int i, int j, float ***img, float ***tmp) {
   deltaBy = (1 - img[i + signY][j][B]) * ry * img[i][j][B] * 0.25;
   
   /* Verify the neighbour: can receive the BLUE color? */
-  //if (deltaBx > 0 && (j - signX) > 0 && (j - signX) < M-1)
-  tmp[i][j - signX][B] -= (-signX) * deltaBx;
+  if (deltaBx > 0 && (j - signX) > 0 && (j - signX) < M-1)
+  tmp[i][j - signX][B] += (signX) * deltaBx;
 
     //if (deltaBy > 0 && (i + signY) > 0 && (i + signY) < N-1)
-  tmp[i + signY][j][B] -= (-signY) * deltaBy;
+  tmp[i + signY][j][B] += (signY) * deltaBy;
  
  
   /* Refresh self value */ 
@@ -182,6 +206,7 @@ void greenRefresh(float ***temp){
     for(j = 1; j < N-1 ; j++) {    //angle between two vectors
       float red = temp[i][j][R];
       float blue = temp[i][j][B];
+      float theta = temp[i][j][G];
       float newTheta = 0.0f;
       float norm = sqrt(red*red + blue*blue);
       
@@ -190,8 +215,10 @@ void greenRefresh(float ***temp){
         newTheta = acos(angle) / (2 * PI);
       }
       //   printf("GREEN red: %.2f  blue: %.2f  newTheta:%.3f angle:%.4f \n",red,blue, newTheta, angle);
+      theta += newTheta;
+      if(theta > 1) theta -= 1.0;
 
-      temp[i][j][G] = newTheta;
+      temp[i][j][G] = theta;
     }
 }
 
