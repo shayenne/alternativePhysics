@@ -1,6 +1,6 @@
 LDFLAGS= -lm
 CFLAGS= -Wall -pedantic --ansi
-OFLAGS= -std=c99 -O3
+OFLAGS= -std=c99 -O3 -openmp
 
 DEPS = ep.h ppmFunctions.h
 OBJ = ep.o ppmFunctions.o

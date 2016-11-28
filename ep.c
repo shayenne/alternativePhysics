@@ -3,41 +3,14 @@
 #include<math.h>
 #include "ep.h"
 #include "ppmFunctions.h"
+#include <omp.h>
 
 /* Image dimensions */
 int  M = 5; /*rows*/
 int  N = 5;/*columns*/
 
-
-/* float image[M][N][3] = { */
-/*   {{0,0,0},{0,0,0},{0,0,0}}, */
-/*   {{0,0,0},{1,0,0},{0,0,0}}, */
-/*   {{0,0,0},{0,0,0},{0,0,0}}, */
-/* }; */
-
-/* float temp[M][N][3] = { */
-/*   {{0,0,0},{0,0,0},{0,0,0}}, */
-/*   {{0,0,0},{1,0,0},{0,0,0}}, */
-/*   {{0,0,0},{0,0,0},{0,0,0}}, */
-/*  }; */
-
-
-/* float image[M][N][3] = { */
-/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, */
-/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, */
-/*   {{0,0,0},{0,0,0},{1,0,1},{0,0,0},{0,0,0}}, */
-/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, */
-/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}} */
-/* }; */
-
-/* float temp[M][N][3] = { */
-/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, */
-/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, */
-/*   {{0,0,0},{0,0,0},{1,0,1},{0,0,0},{0,0,0}}, */
-/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, */
-/*   {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}} */
-/* }; */
-
+void greenRefresh();
+void clean(float mat[M][N][3]);
 
 /*-----------------------------------------------------*
            ALTERNATIVE PHYSICS - MAIN FUNCTION
@@ -82,15 +55,25 @@ int main(int argc, char *argv[]) {
   printMatrix(temp);
   
   for (int k = 0; k < nIter; k++) {
+    clean(temp);
     /* First try: apply blurry in every pixel*/
     for (int i = 1; i < M-1; i++) {
       for (int j = 1; j < N-1; j++) {
 	blurry(i, j, image, temp);
+
       }
     }
-    copyResult(temp, image);
-    printMatrix(image);
+
+    for (int i = 1; i < M-1; i++) 
+      for (int j = 1; j < N-1; j++){
+	image[i][j][R] += temp[i][j][R];
+	image[i][j][B] += temp[i][j][B];
+      }
+
+    greenRefresh(image);   
   }
+
+  printMatrix(image);
 
   newPPM = convertIntPPM(image, M, N);
   ppmWriter(output, newPPM);
@@ -106,7 +89,10 @@ int main(int argc, char *argv[]) {
 /*-----------------------------------------------------*
              DEBUG - PRINT MATRIX FUNCTION
  *-----------------------------------------------------*/
+
 void printMatrix(float ***mtx) {
+  printf("Print Matrix function\n");
+
   for(int i = 0; i < M; i++) { 
     for(int j = 0; j < N; j++) {
       printf("[%.2f, %.2f, %.2f]  ", mtx[i][j][R], mtx[i][j][G], mtx[i][j][B]);
@@ -135,7 +121,6 @@ void copyResult(float ***orig, float ***dest) {
                TRANSPORT COLORS FUNCTION
  *-----------------------------------------------------*/
 void blurry(int i, int j, float ***img, float ***tmp) {
-  
   float theta = 2 * PI * img[i][j][G];
   float rx = cos(PI/2 - theta);
   float ry = sin(PI/2 - theta);
@@ -147,54 +132,78 @@ void blurry(int i, int j, float ***img, float ***tmp) {
   float deltaRx, deltaRy;
   float deltaBx, deltaBy;
 
-  if(rx < 0) {
-    signX = -1;
-    rx *= -1;
-  }
-  if(ry < 0) {
-    signY = -1;
-    ry *= -1;
-  }
+  if(rx < 0)    signX = -1;
+  if(ry < 0)    signY = -1;
 
+  //printf("SIGN X: %d   Y: %d\n",signX,signY);
+  //printf("Rx: %.3f   Ry: %.3f\n",rx,ry);
   /* Calculate the amount of RED color to be transfered */
   deltaRx = (1 - img[i][j + signX][R]) * rx * img[i][j][R] * 0.25;
   deltaRy = (1 - img[i - signY][j][R]) * ry * img[i][j][R] * 0.25;
+  //printf("deltaRx: %.3f   deltaRy: %.3f\n",deltaRx, deltaRy);
 
   /* Verify the neighbour: can receive the RED color? */
-  if (deltaRx > 0 && (j + signX) > 0 && (j + signX) < M-1)
-    tmp[i][j + signX][R] = img[i][j + signX][R] + deltaRx;
+  //if ((i + signX) > 0 && (i + signX) < M-1)
+  tmp[i][j + signX][R] += signX * deltaRx;
 
-  if (deltaRy > 0 && (i - signY) > 0 && (i - signY) < N-1)
-    tmp[i - signY][j][R] = img[i - signY][j][R] + deltaRy;
+  //if ((j + signY) > 0 && (j + signY) < N-1)
+  tmp[i - signY][j][R] += signY * deltaRy;
 
- 
   /* Calculate the amount of BLUE color to be transfered */
   deltaBx = (1 - img[i][j - signX][B]) * rx * img[i][j][B] * 0.25;
   deltaBy = (1 - img[i + signY][j][B]) * ry * img[i][j][B] * 0.25;
   
   /* Verify the neighbour: can receive the BLUE color? */
-  if (deltaBx > 0 && (j - signX) > 0 && (j - signX) < M-1)
-    tmp[i][j - signX][B] = img[i][j - signX][B] + deltaBx;
+  //if (deltaBx > 0 && (j - signX) > 0 && (j - signX) < M-1)
+  tmp[i][j - signX][B] -= (-signX) * deltaBx;
 
-  if (deltaBy > 0 && (i + signY) > 0 && (i + signY) < N-1)
-    tmp[i + signY][j][B] = img[i + signY][j][B] + deltaBy;
+    //if (deltaBy > 0 && (i + signY) > 0 && (i + signY) < N-1)
+  tmp[i + signY][j][B] -= (-signY) * deltaBy;
  
  
   /* Refresh self value */ 
-  tmp[i][j][R] = tmp[i][j][R] - (deltaRx + deltaRy);
-  tmp[i][j][B] = tmp[i][j][B] - (deltaBx + deltaBy);
+  tmp[i][j][R] = tmp[i][j][R] - sqrt(deltaRx*deltaRx + deltaRy*deltaRy);
+  tmp[i][j][B] = tmp[i][j][B] - sqrt(deltaBx*deltaBx + deltaBy*deltaBy);
 
-  /* Refresh GREEN color */
-  float eps = 10e-5;             /* eps: Avoid division by zero*/
-  float newTheta = asin( tmp[i][j][R] /
-			 ( sqrt( pow(tmp[i][j][R], 2) + pow(tmp[i][j][B], 2))
-			   + eps));
-  tmp[i][j][G] = (theta + newTheta) / (2 * PI);
-
-  /* Adjust the range */
-  if (tmp[i][j][G] > 1)
-    tmp[i][j][G] -= 1;
+  //  printf("MATRIZ TMP EM BLURRY INDEX %d, %d   ",i, j);
+  //printMatrix(tmp);
 
 }  
 
 
+/*-----------------------------------------------------*
+               REFRESH GREEN COLOR FUNCTION
+ *-----------------------------------------------------*/
+void greenRefresh(float ***temp){
+  int i, j;
+  float eps = 1E-5;   //eps: Avoid division by zero
+  
+  for(i = 1; i < M-1 ; i++)
+    for(j = 1; j < N-1 ; j++) {    //angle between two vectors
+      float red = temp[i][j][R];
+      float blue = temp[i][j][B];
+      float newTheta = 0.0f;
+      float norm = sqrt(red*red + blue*blue);
+      
+      if(norm > eps) {
+        float angle = blue / (norm + eps);
+        newTheta = acos(angle) / (2 * PI);
+      }
+      //   printf("GREEN red: %.2f  blue: %.2f  newTheta:%.3f angle:%.4f \n",red,blue, newTheta, angle);
+
+      temp[i][j][G] = newTheta;
+    }
+}
+
+/*-----------------------------------------------------*
+               MATRIX CLEANER FUNCTION
+ *-----------------------------------------------------*/
+void clean(float ***mat) {
+  int i, j;
+  for (int i = 0; i < M; i++)
+    for (int j = 0; j < N; j++){
+      mat[i][j][R] = 0.0;
+      mat[i][j][G] = 0.0;
+      mat[i][j][B] = 0.0;
+    }
+}
