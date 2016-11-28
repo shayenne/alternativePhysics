@@ -55,49 +55,39 @@ int main(int argc, char *argv[]) {
   
   //printMatrix(temp);
   
-#pragma omp parallel shared(temp, image)
+  //#pragma omp parallel //shared(temp, image)
   {
-    int id;
-    id = omp_get_thread_num();
-    printf("id: %d \n", id);
-    
-    // #pragma omp parallel for schedule(dynamic)
     for (int k = 0; k < nIter; k++) {
 	clean(temp);
+	
 	/* First try: apply blurry in every pixel*/
+#pragma omp parallel for shared(temp, image) schedule(dynamic, 300)
 	for (int i = 1; i < M-1; i++) {
 	  for (int j = 1; j < N-1; j++) {
 	    blurry(i, j, image, temp);
 	  }
 	}
-	
-	/*
-	  for (int i = 1; i < M-1; i++) 
-	  for (int j = 1; j < N-1; j++) 
-	  image[i][j][B] += temp[i][j][B];
-	  
-	  for (int i = 1; i < M-1; i++) 
-	  for (int j = 1; j < N-1; j++)
-	  image[i][j][R] += temp[i][j][R];
-	*/
-	
+
+#pragma omp parallel for shared(temp, image) schedule(dynamic, 300)
 	for (int i = 1; i < M-1; i++) 
 	  for (int j = 1; j < N-1; j++) {
 	    image[i][j][R] += temp[i][j][R];
 	    image[i][j][B] += temp[i][j][B];
 	  }
+	  
+	  greenRefresh(image);
 	
-	greenRefresh(image);
+	  /*
 	newPPM = convertIntPPM(image, M, N);
 	char str[15];
 	sprintf(str, "res/out%d.ppm", k);
 	ppmWriter(str, newPPM);
-	
+	  */
     }
   }
   
   
-  printMatrix(image);
+  // printMatrix(image);
   
   newPPM = convertIntPPM(image, M, N);
   ppmWriter(output, newPPM);
@@ -178,7 +168,7 @@ void blurry(int i, int j, float ***img, float ***tmp) {
   deltaBy = (1 - img[i + signY][j][B]) * ry * img[i][j][B] * 0.25;
   
   /* Verify the neighbour: can receive the BLUE color? */
-  if (deltaBx > 0 && (j - signX) > 0 && (j - signX) < M-1)
+  //if (deltaBx > 0 && (j - signX) > 0 && (j - signX) < M-1)
   tmp[i][j - signX][B] += (signX) * deltaBx;
 
     //if (deltaBy > 0 && (i + signY) > 0 && (i + signY) < N-1)
