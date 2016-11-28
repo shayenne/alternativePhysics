@@ -12,6 +12,7 @@
 int  M = 5; /*rows*/
 int  N = 5;/*columns*/
 
+
 /*-----------------------------------------------------*
            ALTERNATIVE PHYSICS - MAIN FUNCTION
  *-----------------------------------------------------*/
@@ -53,43 +54,35 @@ int main(int argc, char *argv[]) {
   M = ppm->x;
   N = ppm->y;
   
-  //printMatrix(temp);
-  
-  //#pragma omp parallel //shared(temp, image)
-  {
-    for (int k = 0; k < nIter; k++) {
-	clean(temp);
-	
-	/* First try: apply blurry in every pixel*/
-#pragma omp parallel for shared(temp, image) schedule(dynamic, 300)
-	for (int i = 1; i < M-1; i++) {
-	  for (int j = 1; j < N-1; j++) {
-	    blurry(i, j, image, temp);
-	  }
-	}
-
-#pragma omp parallel for shared(temp, image) schedule(dynamic, 300)
-	for (int i = 1; i < M-1; i++) 
-	  for (int j = 1; j < N-1; j++) {
-	    image[i][j][R] += temp[i][j][R];
-	    image[i][j][B] += temp[i][j][B];
-	  }
-	  
-	  greenRefresh(image);
-	
-	  /*
-	newPPM = convertIntPPM(image, M, N);
-	char str[15];
-	sprintf(str, "res/out%d.ppm", k);
-	ppmWriter(str, newPPM);
-	  */
+  for (int k = 0; k < nIter; k++) {
+    clean(temp);
+    
+    /* First try: apply blurry in every pixel*/
+#pragma omp parallel for shared(temp, image) schedule(dynamic)
+    for (int i = 1; i < M-1; i++) {
+      for (int j = 1; j < N-1; j++) {
+	blurry(i, j, image, temp);
+      }
     }
+    
+#pragma omp parallel for shared(temp, image) schedule(dynamic)
+    for (int i = 1; i < M-1; i++) 
+      for (int j = 1; j < N-1; j++) {
+	image[i][j][R] += temp[i][j][R];
+	image[i][j][B] += temp[i][j][B];
+      }
+    
+    greenRefresh(image);
+    
+    /*
+      newPPM = convertIntPPM(image, M, N);
+      char str[15];
+      sprintf(str, "res/out%d.ppm", k);
+      ppmWriter(str, newPPM);
+    */
   }
-  
-  
-  // printMatrix(image);
-  
-  newPPM = convertIntPPM(image, M, N);
+    
+  newPPM = (ppmImage *) convertIntPPM(image, M, N);
   ppmWriter(output, newPPM);
   
   /* Free memory used */
@@ -103,7 +96,6 @@ int main(int argc, char *argv[]) {
 /*-----------------------------------------------------*
              DEBUG - PRINT MATRIX FUNCTION
  *-----------------------------------------------------*/
-
 void printMatrix(float ***mtx) {
   printf("Print Matrix function\n");
 
@@ -149,38 +141,24 @@ void blurry(int i, int j, float ***img, float ***tmp) {
   if(rx < 0)    signX = -1;
   if(ry < 0)    signY = -1;
 
-  //printf("SIGN X: %d   Y: %d\n",signX,signY);
-  //printf("Rx: %.3f   Ry: %.3f\n",rx,ry);
+
   /* Calculate the amount of RED color to be transfered */
   deltaRx = (1 - img[i][j + signX][R]) * rx * img[i][j][R] * 0.25;
   deltaRy = (1 - img[i - signY][j][R]) * ry * img[i][j][R] * 0.25;
-  //printf("deltaRx: %.3f   deltaRy: %.3f\n",deltaRx, deltaRy);
 
-  /* Verify the neighbour: can receive the RED color? */
-  //if ((i + signX) > 0 && (i + signX) < M-1)
   tmp[i][j + signX][R] += signX * deltaRx;
-
-  //if ((j + signY) > 0 && (j + signY) < N-1)
   tmp[i - signY][j][R] += signY * deltaRy;
 
   /* Calculate the amount of BLUE color to be transfered */
   deltaBx = (1 - img[i][j - signX][B]) * rx * img[i][j][B] * 0.25;
   deltaBy = (1 - img[i + signY][j][B]) * ry * img[i][j][B] * 0.25;
   
-  /* Verify the neighbour: can receive the BLUE color? */
-  //if (deltaBx > 0 && (j - signX) > 0 && (j - signX) < M-1)
   tmp[i][j - signX][B] += (signX) * deltaBx;
-
-    //if (deltaBy > 0 && (i + signY) > 0 && (i + signY) < N-1)
   tmp[i + signY][j][B] += (signY) * deltaBy;
- 
  
   /* Refresh self value */ 
   tmp[i][j][R] = tmp[i][j][R] - sqrt(deltaRx*deltaRx + deltaRy*deltaRy);
   tmp[i][j][B] = tmp[i][j][B] - sqrt(deltaBx*deltaBx + deltaBy*deltaBy);
-
-  //  printf("MATRIZ TMP EM BLURRY INDEX %d, %d   ",i, j);
-  //printMatrix(tmp);
 
 }  
 
@@ -190,10 +168,11 @@ void blurry(int i, int j, float ***img, float ***tmp) {
  *-----------------------------------------------------*/
 void greenRefresh(float ***temp){
   int i, j;
-  float eps = 1E-5;   //eps: Avoid division by zero
-  
+  float eps = 1E-5;   /* eps: Avoid division by zero */
+
+
   for(i = 1; i < M-1 ; i++)
-    for(j = 1; j < N-1 ; j++) {    //angle between two vectors
+    for(j = 1; j < N-1 ; j++) {    /* angle between two vectors */
       float red = temp[i][j][R];
       float blue = temp[i][j][B];
       float theta = temp[i][j][G];
@@ -204,7 +183,7 @@ void greenRefresh(float ***temp){
         float angle = blue / (norm + eps);
         newTheta = acos(angle) / (2 * PI);
       }
-      //   printf("GREEN red: %.2f  blue: %.2f  newTheta:%.3f angle:%.4f \n",red,blue, newTheta, angle);
+
       theta += newTheta;
       if(theta > 1) theta -= 1.0;
 
@@ -216,7 +195,7 @@ void greenRefresh(float ***temp){
                MATRIX CLEANER FUNCTION
  *-----------------------------------------------------*/
 void clean(float ***mat) {
-  int i, j;
+#pragma omp parallel for
   for (int i = 0; i < M; i++)
     for (int j = 0; j < N; j++){
       mat[i][j][R] = 0.0;

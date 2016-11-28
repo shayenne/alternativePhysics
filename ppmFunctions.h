@@ -15,5 +15,6 @@ ppmImage *ppmReader(const char *filename);
 void ppmWriter(const char *filename, ppmImage *img);
 void changeColorPPM(ppmImage *img);
 float ***convertFloatImage(ppmImage *img);
+ppmImage *convertIntPPM(float ***img, int M, int N);
 void freeImage(float ***img, int M, int N);
 void freePPM(ppmImage *img);
