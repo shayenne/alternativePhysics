@@ -1,5 +1,6 @@
 
-#define PI 3.141592
+#define twoPI  6.283184
+#define PIhalf 1.570796
 #define R 0
 #define G 1
 #define B 2

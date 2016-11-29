@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
   
   /* R, G, B in [0,1[*/
   printf("Parâmetros recebidos: %s %s %d %d\n", input, output, nIter, nProc);
-  omp_set_num_threads(nProc);
+  
 
   /* Get PPM data */
   ppmImage *ppm, *newPPM;
@@ -53,26 +53,83 @@ int main(int argc, char *argv[]) {
   /* Refresh image dimensions */
   M = ppm->x;
   N = ppm->y;
+
+  float angle, rx, ry, percentage;
+  int signX, signY;
+  float deltaRx, deltaRy;
+  float deltaBx, deltaBy;
   
   for (int k = 0; k < nIter; k++) {
-    clean(temp);
+    //clean(temp);
     
     /* First try: apply blurry in every pixel*/
-#pragma omp parallel for shared(temp, image) schedule(dynamic)
+#pragma omp parallel for shared(temp, image) num_threads(nProc)
     for (int i = 1; i < M-1; i++) {
       for (int j = 1; j < N-1; j++) {
-	blurry(i, j, image, temp);
+	/* blurry(i, j, image, temp); */
+	angle = PIhalf - (twoPI * image[i][j][G]);
+	rx = cos(angle);
+	ry = sin(angle);
+	
+	/* Define the neighbour that will receive the color */
+	signX = 1;
+	signY = 1;
+	
+	if(rx < 0)    signX = -1;
+	if(ry < 0)    signY = -1;
+	
+	/* Calculate the amount of RED color to be transfered */
+	percentage = image[i][j][R] * 0.25;
+	deltaRx = (1 - image[i][j + signX][R]) * rx * percentage;
+	deltaRy = (1 - image[i - signY][j][R]) * ry * percentage;
+	
+	temp[i][j + signX][R] += signX * deltaRx;
+	temp[i - signY][j][R] += signY * deltaRy;
+	
+	/* Calculate the amount of BLUE color to be transfered */
+	percentage = image[i][j][B] * 0.25;
+	deltaBx = (1 - image[i][j - signX][B]) * rx * percentage;
+	deltaBy = (1 - image[i + signY][j][B]) * ry * percentage;
+	
+	temp[i][j - signX][B] += (signX) * deltaBx;
+	temp[i + signY][j][B] += (signY) * deltaBy;
+
+	/* Refresh self value */ 
+	temp[i][j][R] -= sqrt(deltaRx*deltaRx + deltaRy*deltaRy);
+	temp[i][j][B] -= sqrt(deltaBx*deltaBx + deltaBy*deltaBy);
       }
     }
     
-#pragma omp parallel for shared(temp, image) schedule(dynamic)
-    for (int i = 1; i < M-1; i++) 
+#pragma omp parallel for shared(temp, image) num_threads(nProc)
+    for (int i = 1; i < M-1; i++)
       for (int j = 1; j < N-1; j++) {
+	/* Updating values of image */
 	image[i][j][R] += temp[i][j][R];
 	image[i][j][B] += temp[i][j][B];
+
+	/* Cleaning temp matrix */
+	temp[i][j][R] = 0;
+	temp[i][j][G] = 0;
+	temp[i][j][B] = 0;
+
+	/* Green Refresh optimized */
+	{
+	  float theta = 0.0f;
+	  float norm  = sqrt(image[i][j][R]*image[i][j][R] +
+			     image[i][j][B]*image[i][j][B]);
+
+	  /* eps: Avoid division by zero */
+	  if(norm > 1E-5) 
+	    theta = acos(image[i][j][B] / (norm + 1E-5)) / (twoPI);
+	  
+	  image[i][j][G] += theta;
+	  
+	  if(image[i][j][G] > 1)
+	    image[i][j][G] -= 1.0;
+	}
       }
     
-    greenRefresh(image);
+    //greenRefresh(image);
     
     /*
       newPPM = convertIntPPM(image, M, N);
@@ -127,9 +184,9 @@ void copyResult(float ***orig, float ***dest) {
                TRANSPORT COLORS FUNCTION
  *-----------------------------------------------------*/
 void blurry(int i, int j, float ***img, float ***tmp) {
-  float theta = 2 * PI * img[i][j][G];
-  float rx = cos(PI/2 - theta);
-  float ry = sin(PI/2 - theta);
+  float angle = PIhalf - (twoPI * img[i][j][G]);
+  float rx = cos(angle);
+  float ry = sin(angle);
 
   /* Define the neighbour that will receive the color */
   int signX = 1;
@@ -143,22 +200,26 @@ void blurry(int i, int j, float ***img, float ***tmp) {
 
 
   /* Calculate the amount of RED color to be transfered */
-  deltaRx = (1 - img[i][j + signX][R]) * rx * img[i][j][R] * 0.25;
-  deltaRy = (1 - img[i - signY][j][R]) * ry * img[i][j][R] * 0.25;
+  float percentage = img[i][j][R] * 0.25;
+  deltaRx = (1 - img[i][j + signX][R]) * rx * percentage;
+  deltaRy = (1 - img[i - signY][j][R]) * ry * percentage;
 
   tmp[i][j + signX][R] += signX * deltaRx;
   tmp[i - signY][j][R] += signY * deltaRy;
 
   /* Calculate the amount of BLUE color to be transfered */
-  deltaBx = (1 - img[i][j - signX][B]) * rx * img[i][j][B] * 0.25;
-  deltaBy = (1 - img[i + signY][j][B]) * ry * img[i][j][B] * 0.25;
+  percentage = img[i][j][B] * 0.25;
+  deltaBx = (1 - img[i][j - signX][B]) * rx * percentage;
+  deltaBy = (1 - img[i + signY][j][B]) * ry * percentage;
   
   tmp[i][j - signX][B] += (signX) * deltaBx;
   tmp[i + signY][j][B] += (signY) * deltaBy;
+
+
  
   /* Refresh self value */ 
-  tmp[i][j][R] = tmp[i][j][R] - sqrt(deltaRx*deltaRx + deltaRy*deltaRy);
-  tmp[i][j][B] = tmp[i][j][B] - sqrt(deltaBx*deltaBx + deltaBy*deltaBy);
+  tmp[i][j][R] -= sqrt(deltaRx*deltaRx + deltaRy*deltaRy);
+  tmp[i][j][B] -= sqrt(deltaBx*deltaBx + deltaBy*deltaBy);
 
 }  
 
@@ -167,27 +228,20 @@ void blurry(int i, int j, float ***img, float ***tmp) {
                REFRESH GREEN COLOR FUNCTION
  *-----------------------------------------------------*/
 void greenRefresh(float ***temp){
-  int i, j;
-  float eps = 1E-5;   /* eps: Avoid division by zero */
-
-
-  for(i = 1; i < M-1 ; i++)
-    for(j = 1; j < N-1 ; j++) {    /* angle between two vectors */
-      float red = temp[i][j][R];
-      float blue = temp[i][j][B];
-      float theta = temp[i][j][G];
+#pragma omp parallel for shared(temp)
+  for(int i = 1; i < M-1 ; i++)
+    for(int j = 1; j < N-1 ; j++) {    /* angle between two vectors */
       float newTheta = 0.0f;
-      float norm = sqrt(red*red + blue*blue);
-      
-      if(norm > eps) {
-        float angle = blue / (norm + eps);
-        newTheta = acos(angle) / (2 * PI);
-      }
+      float norm     = sqrt(temp[i][j][R]*temp[i][j][R] + temp[i][j][B]*temp[i][j][B]);
 
-      theta += newTheta;
-      if(theta > 1) theta -= 1.0;
+      /* eps: Avoid division by zero */
+      if(norm > 1E-5) 
+        newTheta = acos(temp[i][j][B] / (norm + 1E-5)) / (twoPI);
 
-      temp[i][j][G] = theta;
+      temp[i][j][G] += newTheta;
+
+      if(temp[i][j][G] > 1)
+	temp[i][j][G] -= 1.0;
     }
 }
 
@@ -202,4 +256,29 @@ void clean(float ***mat) {
       mat[i][j][G] = 0.0;
       mat[i][j][B] = 0.0;
     }
+}
+
+/*-----------------------------------------------------*
+               CREATE EMPTY MATRIX FUNCTION
+ *-----------------------------------------------------*/
+float *** createEmptyMatrix(int M, int N) {
+
+   float ***image;
+    
+   image = (float ***) malloc (M * sizeof(float **));
+   
+   for (int k = 0; k < M; k++) {
+     image[k] = (float **) malloc (N * sizeof(float *));
+     for (int l = 0; l < N; l++)
+       image[k][l] = (float *) malloc (3* sizeof(float));
+   }
+   
+   for (int k = 0; k < M; k++) 
+     for (int l = 0; l < N; l++) {  
+       image[k][l][0] = 0;
+       image[k][l][1] = 0;
+       image[k][l][2] = 0;
+     }
+   
+   return image;  
 }
